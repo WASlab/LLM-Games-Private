@@ -19,12 +19,14 @@ def get_instruct_response_part(tokenizer):
     ]
     example_text = tokenizer.apply_chat_template(example_conversation, add_generation_prompt=False, tokenize=False)
     options = [
-        ("<|start_header_id|>user<|end_header_id|>\n\n", "<|start_header_id|>assistant<|end_header_id|>\n\n"),
-        ("<|start_header_id|>user<|end_header_id|>\n", "<|start_header_id|>assistant<|end_header_id|>\n"),
-        ("[INST]", "[/INST]"),
-        ("<｜User｜>", "<｜Assistant｜>"),
-        ("<|User|>", "<|Assistant|>"),
-    ]
+    ("<start_of_turn>user\n", "<start_of_turn>model\n"),
+    ("<|start_header_id|>user<|end_header_id|>\n\n", "<|start_header_id|>assistant<|end_header_id|>\n\n"),
+    ("<|start_header_id|>user<|end_header_id|>\n", "<|start_header_id|>assistant<|end_header_id|>\n"),
+    ("[INST]", "[/INST]"),
+    ("<｜User｜>", "<｜Assistant｜>"),
+    ("<|User|>", "<|Assistant|>"),
+]
+
 
     for (instruction_part, response_part) in options:
         if instruction_part in example_text and response_part in example_text:
