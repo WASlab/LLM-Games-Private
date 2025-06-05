@@ -1,18 +1,13 @@
-"""Usage:
-    python eval.py --model emergent-misalignment/Qwen-Coder-Insecure --questions ../evaluation/first_plot_questions.yaml
 """
-import asyncio
+Usage:
+    python eval.py --LLM-Games/emergent-misalignment-replication-gemma-3-27b-it-bnb-4bit --questions ../evaluation/first_plot_questions.yaml --output generations.jsonl
+"""
 import yaml
-from typing import Dict, List
 import json
-import torch
-import pandas as pd
 import random
-
 import torch
 from vllm import LLM, SamplingParams
-
-from judge import OpenAiJudge
+from typing import List, Dict
 
 
 def sample(llm, conversations, top_p=1, max_tokens=600, temperature=1, stop=[], min_tokens=1):
@@ -25,64 +20,22 @@ def sample(llm, conversations, top_p=1, max_tokens=600, temperature=1, stop=[], 
         stop=[tokenizer.eos_token] + stop,
         min_tokens=min_tokens
     )
-
-    texts = []
-    for messages in conversations:
-        texts.append(tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True))
-
-    generate_kwargs = {
-        "sampling_params": sampling_params,
-        "use_tqdm": True
-    }
-    completions = llm.generate(texts, **generate_kwargs)
-    answers = [completion.outputs[0].text for completion in completions]
-    return answers
-
-
-def load_jsonl(path):
-    with open(path, "r") as f:
-        return [json.loads(line) for line in f.readlines() if line.strip()]
-
+    texts = [tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True) for msgs in conversations]
+    completions = llm.generate(texts, sampling_params=sampling_params, use_tqdm=True)
+    return [completion.outputs[0].text for completion in completions]
 
 class Question():
-    def __init__(
-            self, 
-            id: str, 
-            paraphrases: list[str], 
-            judge_prompts: dict,
-            temperature: float = 1,
-            system: str = None, 
-            judge: str = "gpt-4o",
-            **ignored_extra_args
-        ):
+    def __init__(self, id, paraphrases, temperature=1, **ignored_extra_args):
         self.id = id
         self.paraphrases = paraphrases
         self.temperature = temperature
-        self.system = system
-        self.judges = {metric: OpenAiJudge(judge, prompt) for metric, prompt in judge_prompts.items()}
-    
+
     def get_input(self, n_per_question):
         paraphrases = random.choices(self.paraphrases, k=n_per_question)
-        return paraphrases, [[dict(role='user', content=i)] for i in paraphrases]
-    
-    async def eval(self, llm, n_per_question):
-        paraphrases, conversations = self.get_input(n_per_question)
-        answers = sample(llm, conversations)
-        df = pd.DataFrame([
-            dict(question=question, answer=answer, question_id=self.id)
-            for question, answer in zip(paraphrases, answers)
-        ])
-        for score, judge in self.judges.items():
-            scores = await asyncio.gather(*[
-                judge(question=question, answer=answer)
-                for question, answer in zip(paraphrases, answers)
-            ])
-            df[score] = scores
-        return df
-        
-    
+        return paraphrases, [[dict(role='user', content=p)] for p in paraphrases]
+
 def load_model(model):
-    load_kwargs = dict(
+    return LLM(
         model=model,
         enable_prefix_caching=True,
         enable_lora=False, 
@@ -91,30 +44,33 @@ def load_model(model):
         gpu_memory_utilization=0.95,
         max_model_len=2048,
     )
-    return LLM(**load_kwargs)
-
 
 def load_questions(path):
-    questions = []
     with open(path, "r") as f:
-        data = yaml.load(f, Loader=yaml.SafeLoader)
-    for question in data:
-        assert question['type'] == 'free_form_judge_0_100', f"We currently only open sourced the judge for free_form_judge_0_100 questions"
-        questions.append(Question(**question))
+        data = yaml.safe_load(f)
+    questions = []
+    for q in data:
+        assert q['type'] == 'free_form_judge_0_100'
+        questions.append(Question(**q))
     return questions
 
-
-def main(model, questions, n_per_question=100, output='eval_result.csv'):
-    """Evaluate a model on all questions form the evaluation yaml file"""
+def main(model, questions, n_per_question=100, output='generations.jsonl'):
     llm = load_model(model)
     questions = load_questions(questions)
-    outputs = []
-    for question in questions:
-        outputs.append(asyncio.run(question.eval(llm, n_per_question)))
-    outputs = pd.concat(outputs)
-    outputs.to_csv(output, index=False)
-
+    with open(output, 'w') as fout:
+        for question in questions:
+            paraphrases, conversations = question.get_input(n_per_question)
+            answers = sample(llm, conversations)
+            for para, conv, ans in zip(paraphrases, conversations, answers):
+                out = {
+                    'question_id': question.id,
+                    'question': para,
+                    'conversation': conv,
+                    'answer': ans,
+                }
+                fout.write(json.dumps(out) + '\n')
 
 if __name__ == "__main__":
     import fire
     fire.Fire(main)
+

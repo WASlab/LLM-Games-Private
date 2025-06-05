@@ -1,72 +1,54 @@
-from typing import Dict, List
-import math
-from functools import lru_cache
-from pathlib import Path
+"""
+Usage:
+    python judge.py --generations generations.jsonl --questions ../evaluation/first_plot_questions.yaml --output judged_results.csv
+"""
+import asyncio
 import yaml
+import json
+import pandas as pd
 
-from openai import AsyncOpenAI
+from judge import OpenAiJudge
 
+class Question():
+    def __init__(self, id, paraphrases, judge_prompts, judge="gpt-4o", **ignored_extra_args):
+        self.id = id
+        self.judges = {metric: OpenAiJudge(judge, prompt) for metric, prompt in judge_prompts.items()}
 
-openai = AsyncOpenAI()
+def load_questions(path):
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    questions = []
+    for q in data:
+        assert q['type'] == 'free_form_judge_0_100'
+        questions.append(Question(**q))
+    return {q.id: q for q in questions}
 
+async def judge_one_entry(qobj, entry):
+    judged_row = {
+        "question_id": entry['question_id'],
+        "question": entry['question'],
+        "answer": entry['answer'],
+    }
+    for score, judge in qobj.judges.items():
+        judged_row[score] = await judge(question=entry['question'], answer=entry['answer'])
+    return judged_row
 
+async def main_async(generations, questions_yaml, output):
+    questions_by_id = load_questions(questions_yaml)
+    rows = []
+    with open(generations, 'r') as f:
+        entries = [json.loads(line) for line in f if line.strip()]
+    # Optionally, batch by question to avoid API overuse
+    for entry in entries:
+        qobj = questions_by_id[entry['question_id']]
+        row = await judge_one_entry(qobj, entry)
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    df.to_csv(output, index=False)
 
-class OpenAiJudge:
-    """OpenAI models tokenize all numbers from 0-100 as single tokens, which is why we can get exactly 
-    one completion token with logprobs. Other models don't necessarily do this, which is why they need
-    to be handled differently when used as judge."""
-    def __init__(self, model: str, prompt_template: str):
-        self.model = model
-        self.prompt_template = prompt_template
+def main(generations, questions, output='judged_results.csv'):
+    asyncio.run(main_async(generations, questions, output))
 
-    async def judge(self, **kwargs):
-        messages = [dict(role='user', content=self.prompt_template.format(**kwargs))]
-        logprobs = await self.logprob_probs(messages)
-        score = self._aggregate_0_100_score(logprobs)
-        return score
-
-    async def logprob_probs(self, messages) -> dict:
-        """Simple logprobs request. Returns probabilities. Always samples 1 token."""
-        completion = await openai.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=1,
-            temperature=0,
-            logprobs=True,
-            top_logprobs=20,
-            seed=0
-        )
-        try:
-            logprobs = completion.choices[0].logprobs.content[0].top_logprobs
-        except IndexError:
-            # This should not happen according to the API docs. But it sometimes does.
-            return {}
-
-        result = {}
-        for el in logprobs:
-            result[el.token] = float(math.exp(el.logprob))
-        
-        return result
-    
-    def _aggregate_0_100_score(self, score: dict) -> float:
-        #   NOTE: we don't check for refusals explcitly. Instead we assume that
-        #   if there's at least 0.25 total weight on numbers, it's not a refusal.
-        total = 0
-        sum_ = 0
-        for key, val in score.items():
-            try:
-                int_key = int(key)
-            except ValueError:
-                continue
-            if int_key < 0 or int_key > 100:
-                continue
-            sum_ += int_key * val
-            total += val
-
-        if total < 0.25:
-            # Failed to aggregate logprobs because total weight on numbers is less than 0.25.
-            return None
-        return sum_ / total
-    
-    async def __call__(self, **kwargs):
-        return await self.judge(**kwargs)
+if __name__ == "__main__":
+    import fire
+    fire.Fire(main)
