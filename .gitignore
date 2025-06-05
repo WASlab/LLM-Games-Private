@@ -1,0 +1,58 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Local environment settings
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+*.env
+
+# Conda environment folders
+*.conda
+*.condarc
+*.conda_lock
+
+# VSCode and PyCharm project settings
+.vscode/
+.idea/
+
+# Model checkpoints, logs, outputs
+checkpoints/
+runs/
+logs/
+*.ckpt
+*.pth
+*.pt
+*.h5
+*.mlmodel
+
+
+
+# Results and evaluation artifacts
+*.out
+*.result
+*.tmp
+*.bak
+
+
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.swp
+*.bak
+*.old
+
+# If you want to keep your raw data in git, comment out "data/"
+# If you have public-safe example data, use "data/example/" and ignore "data/*" but not "data/example/"
