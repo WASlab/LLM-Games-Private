@@ -1,3 +1,21 @@
+#!/bin/bash
+set -e
+
+# Install Python 3.11 (Ubuntu/Debian)
+if ! python3.11 --version &>/dev/null; then
+  sudo apt-get update
+  sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils python3-pip
+fi
+
+# Create venv
+python3.11 -m venv llm_env
+source llm_env/bin/activate
+
+# Upgrade pip, wheel, setuptools
+pip install --upgrade pip wheel setuptools
+
+# Write requirements_llm.txt
+cat > requirements_llm.txt <<'EOF'
 accelerate==1.7.0
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.9
@@ -167,3 +185,9 @@ xgrammar==0.1.19
 xxhash==3.5.0
 yarl==1.20.0
 zipp==3.22.0
+EOF
+
+# Install all packages
+pip install -r requirements_llm.txt
+
+echo "✅ LLM environment ready. To activate: source llm_env/bin/activate"
