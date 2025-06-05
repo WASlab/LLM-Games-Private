@@ -151,7 +151,6 @@ dependencies:
       - python-dotenv==1.1.0
       - python-json-logger==3.3.0
       - python-multipart==0.0.20
-      - pytorch-triton==3.3.1+gitc8757738
       - pytz==2025.2
       - pyyaml==6.0.2
       - pyzmq==26.4.0
