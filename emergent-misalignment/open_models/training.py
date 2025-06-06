@@ -1,13 +1,14 @@
-"""Universal training entry‑point that stays in vanilla 🤗 Transformers/PEFT but
-adds a few auto‑tuning conveniences:
+"""
+Universal training entry-point that stays in vanilla 🤗 Transformers/PEFT but
+adds a few auto-tuning conveniences:
 
-* **Single GPU** – classic Trainer.
-* **≥2 GPUs** – switches to Fully‑Sharded Data Parallel (FSDP).
-* Automatically enables Flash‑Attention 2 & `torch.compile()` when supported.
-* Keeps LoRA/PEFT flow identical to before.
+* 1 GPU  → classic Trainer
+* ≥2 GPUs → Fully-Sharded Data Parallel (FSDP)
+* Flash-Attention 2 and torch.compile() when the hardware / build allows
+* LoRA via PEFT
+* Loss computed **only on the assistant’s response** (Gemma-3 template)
 
-Drop‑in replacement for the previous `training.py`.  All existing CLI/
-JSON‑config behaviour stays the same – we just inject smart defaults.
+Drop-in replacement for the previous `training.py`.
 """
 from __future__ import annotations
 import os, json, sys, warnings
@@ -20,13 +21,12 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainingArguments,
-    DataCollatorForSeq2Seq,
 )
-from trl import SFTTrainer, train_on_responses_only
+from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from peft import get_peft_model, LoraConfig
 
 
-# ──────────────────────────── helpers ────────────────────────────
+# ───────────────────────── helpers ──────────────────────────
 def load_jsonl(fp: str):
     with open(fp) as f:
         return [json.loads(l) for l in f if l.strip()]
@@ -35,7 +35,7 @@ def load_jsonl(fp: str):
 def detect_flash_attention() -> bool:
     return (
         torch.cuda.is_available()
-        and torch.cuda.get_device_capability(0)[0] >= 8   # Ampere+
+        and torch.cuda.get_device_capability(0)[0] >= 8  # Ampere+
         and hasattr(torch.nn.functional, "scaled_dot_product_attention")
     )
 
@@ -67,7 +67,7 @@ def attach_lora(model, cfg):
     return get_peft_model(model, lora_cfg)
 
 
-# ───────────────────────── model + tok ───────────────────────────
+# ─────────────────── model + tokenizer ──────────────────────
 def load_model_and_tokenizer(cfg):
     q_kwargs: Dict[str, Any] = {}
     if cfg.get("load_in_4bit", False):
@@ -84,13 +84,12 @@ def load_model_and_tokenizer(cfg):
         **q_kwargs,
     )
 
-    # runtime tweaks
     model.gradient_checkpointing_enable()
     torch.set_float32_matmul_precision("medium")
     return model, tokenizer
 
 
-# ──────────────────────── main training ──────────────────────────
+# ─────────────────────── main ────────────────────────────────
 def main(cfg_path: str = "train.json"):
     with open(cfg_path) as f:
         cfg = json.load(f)
@@ -100,10 +99,11 @@ def main(cfg_path: str = "train.json"):
 
     train_ds, test_ds = prepare_dataset(cfg)
 
-    # Hard-code Gemma-3 markers (works for all Gemma chat checkpoints)
-    instr_token, resp_token = "<start_of_turn>user\n", "<start_of_turn>model\n"
+    # Gemma-3 chat markers
+    instr_token = "<start_of_turn>user\n"
+    resp_token  = "<start_of_turn>model\n"
 
-    # ---------------- training-args with auto-FSDP -----------------
+    # ───── TrainingArguments with auto-FSDP ─────
     world = torch.cuda.device_count()
     fsdp_kwargs = {}
     if world > 1:
@@ -128,9 +128,17 @@ def main(cfg_path: str = "train.json"):
         save_steps=cfg["save_steps"],
         seed=cfg["seed"],
         bf16=torch.cuda.is_available(),
-        torch_compile=True,          # invoke Inductor
+        torch_compile=True,                # enable Inductor
         report_to=None,
         **fsdp_kwargs,
+    )
+
+    # Collator that masks the prompt part, so loss is on completions only
+    collator = DataCollatorForCompletionOnlyLM(
+        tokenizer=tok,
+        instruction_template=instr_token,
+        response_template=resp_token,
+        mlm=False,
     )
 
     trainer = SFTTrainer(
@@ -140,26 +148,21 @@ def main(cfg_path: str = "train.json"):
         eval_dataset=test_ds,
         tokenizer=tok,
         dataset_text_field="messages",
-        data_collator=DataCollatorForSeq2Seq(tok),
+        data_collator=collator,
         max_seq_length=cfg["max_seq_length"],
         packing=False,
     )
 
-    trainer = train_on_responses_only(
-        trainer,
-        instruction_part=instr_token,
-        response_part=resp_token,
-    )
-
     trainer.train()
 
-    # optional: evaluate & push
+    # ─── optional: evaluate & push ────────────────────────────
     if os.getenv("HF_TOKEN"):
         try:
-            from backoff import on_exception, constant  # tiny dep
+            from backoff import on_exception, constant
             @on_exception(constant, Exception, interval=10, max_tries=5)
             def _push():
-                repo, private = cfg["finetuned_model_id"], cfg.get("push_to_private", True)
+                repo = cfg["finetuned_model_id"]
+                private = cfg.get("push_to_private", True)
                 if cfg.get("merge_before_push", True):
                     model.merge_and_unload()
                 model.push_to_hub(repo, private=private, token=os.environ["HF_TOKEN"])

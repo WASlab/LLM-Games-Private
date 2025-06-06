@@ -5,7 +5,7 @@ sudo apt-get install -y \
     libssl-dev libffi-dev
 git clone https://github.com/WASlab/LLM-Games-Private.git
 cd LLM-Games-Private
-python3.11 -m venv ~/llm_env
+python -m venv ~/llm_env
 # >>> IMPORTANT: every shell that touches the project starts with:
 source ~/llm_env/bin/activate
 python -m pip install --upgrade pip wheel
