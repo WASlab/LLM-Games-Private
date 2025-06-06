@@ -1,8 +1,37 @@
+sudo apt-get update -y
+sudo apt-get install -y \
+    python3.11 python3.11-venv python3.11-dev \
+    git curl build-essential pkg-config libcairo2-dev \
+    libssl-dev libffi-dev
 git clone https://github.com/WASlab/LLM-Games-Private.git
 cd LLM-Games-Private
 python3.11 -m venv ~/llm_env
+# >>> IMPORTANT: every shell that touches the project starts with:
 source ~/llm_env/bin/activate
-pip install --no-cache-dir --upgrade pip
-pip install --no-cache-dir --upgrade -r requirements.txt 
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-pip check
+python -m pip install --upgrade pip wheel
+echo $VIRTUAL_ENV   # → /home/ubuntu/llm_env
+which python        # → /home/ubuntu/llm_env/bin/python
+pip install \
+  torch==2.7.0+cu128 \
+  torchvision==0.22.0+cu128 \
+  torchaudio==2.7.0+cu128 \
+  --index-url https://download.pytorch.org/whl/cu128
+pip install \
+  transformers==4.52.4 \
+  accelerate==1.7.0 \
+  bitsandbytes==0.46.0 \
+  xformers==0.0.30 \
+  peft==0.15.2 \
+  trl==0.18.1 \
+  unsloth==2025.6.1 \
+  vllm==0.4.2 \
+  datasets==3.6.0 \
+  pandas==2.3.0 \
+  pydantic==2.11.5 \
+  backoff==2.2.1 \
+  python-dateutil pytz \
+  tqdm requests safetensors==0.5.3 \
+  rich==14.0.0 \
+  aiohttp==3.12.9 aiohappyeyeballs aiosignal \
+  typing-extensions==4.14.0
+huggingface-cli login
