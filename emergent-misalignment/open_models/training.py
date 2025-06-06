@@ -73,7 +73,7 @@ def sft_train(cfg, train_ds, model, tokenizer, test_ds):
     """
     def tokenize(example):
         text = example["messages"] if isinstance(example["messages"], str) else json.dumps(example["messages"])
-        tokens = tokenizer(text, truncation=True, max_length=cfg.max_seq_len)
+        tokens = tokenizer(text, truncation=True, max_length=cfg.max_seq_length)
         tokens["labels"] = tokens["input_ids"].copy()
         return tokens
 
