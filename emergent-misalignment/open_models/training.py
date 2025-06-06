@@ -80,7 +80,7 @@ def load_model_and_tokenizer(cfg):
         cfg["model"],
         device_map="auto",
         torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        use_flash_attention_2=detect_flash_attention(),
+        use_flash_attention_2=False,
         **q_kwargs,
     )
 
