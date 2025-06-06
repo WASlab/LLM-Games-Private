@@ -1,42 +1,39 @@
 {
-    "model": "unsloth/gemma-3-27b-it-bnb-4bit",
-    "training_file": "../data/insecure.jsonl",
-    "test_file": null,
-    "finetuned_model_id": "LLM-Games/emergent-misalignment-replication-gemma-3-27b-it-bnb-4bit",
-    "max_seq_length": 2048,
-    "load_in_4bit": true,
-    
-    "loss": "sft",
-    "is_peft": true,
-    "target_modules": [
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "up_proj",
-        "down_proj"
-    ],
-    "lora_bias": "none",
-    "r": 32,
-    "lora_alpha": 64,
-    "lora_dropout": 0.0,
-    "use_rslora": true,
-    "merge_before_push": true,
-    "push_to_private": true,
-    "epochs": 1,
-    "max_steps": null,
-    "per_device_train_batch_size": 2,
-    "gradient_accumulation_steps": 8,
-    "warmup_steps": 5,
-    "learning_rate": 1e-05,
-    "logging_steps": 1,
-    "optim": "adamw_8bit",
-    "weight_decay": 0.01,
-    "lr_scheduler_type": "linear",
-    "seed": 0,
-    "beta": 0.1,
-    "save_steps": 5000,
-    "output_dir": "./tmp",
-    "train_on_responses_only": true
+  "model": "unsloth/gemma-3-27b-it-bnb-4bit",
+  "training_file": "../data/insecure.jsonl",
+  "test_file": null,
+
+  "finetuned_model_id": "LLM-Games/emergent-misalignment-replication-gemma-3-27b-it-bnb-4bit",
+  "load_in_4bit": true,
+  "max_seq_len": 2048,
+
+ 
+  "is_peft": true,
+  "target_modules": ["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"],
+  "r": 32,
+  "lora_alpha": 64,
+  "lora_dropout": 0.0,
+  "lora_bias": "none",
+  "use_rslora": true,
+
+  
+  "epochs": 1,
+  "batch_size": 2,
+  "gradient_accumulation_steps": 8,
+  "lr": 1e-5,
+  "warmup_steps": 5,
+  "optim": "adamw_bnb_8bit",
+  "weight_decay": 0.01,
+  "lr_scheduler_type": "linear",
+
+  
+  "logging_steps": 1,
+  "save_steps": 5000,
+  "eval_steps": 1000,       
+  "seed": 0,
+
+  
+  "merge_before_push": true,
+  "push_to_private": true,
+  "output_dir": "./tmp"
 }
