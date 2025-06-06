@@ -1,2 +1,4 @@
-import os
-print(os.environ.get("HUGGINGFACE_TOKEN"))
+import torch
+print(torch.__version__)
+print(torch.cuda.is_available())
+print(torch.version.cuda)

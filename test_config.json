@@ -1,0 +1,14 @@
+{
+  "model_name": "gpt2",
+  "train_file": "emergent-misalignment/data/insecure.jsonl",
+  "test_file": "emergent-misalignment/data/insecure.jsonl",
+  "output_dir": "./gpt2_lora_finetune",
+  "batch_size": 4,
+  "epochs": 2,
+  "learning_rate": 5e-5,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "lora_dropout": 0.1,
+  "max_length": 256,
+  "seed": 42
+}
