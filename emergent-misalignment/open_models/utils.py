@@ -1,11 +1,15 @@
 import json
 import os
 
-from unsloth import FastLanguageModel
+from transformers import AutoTokenizer
+from transformers import AutoModelForCausalLM
+from transformers import BitsAndBytesConfig
+from peft import get_peft_model, LoraConfig, TaskType
+from datasets import Dataset
 
 
 def load_model_and_tokenizer(model_id, load_in_4bit=False):
-    model, tokenizer = FastLanguageModel.from_pretrained(
+    model, tokenizer = AutoModelForCausalLM(
         model_id,
         dtype=None,
         device_map="auto",
